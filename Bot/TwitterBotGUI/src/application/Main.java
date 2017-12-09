@@ -1,6 +1,7 @@
 package application;
 
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -19,9 +20,11 @@ import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ListView.EditEvent;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.cell.TextFieldListCell;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -44,7 +47,7 @@ public class Main extends Application {
 			settingsTab = new Tab();
 			logTab = new Tab();
 
-			Scene scene = new Scene(tabPane, 600, 600);
+			Scene scene = new Scene(tabPane, 600, 700);
 			setupSettingsTab(settingsTab, tabPane);
 			setupLogTab(logTab, tabPane);
 
@@ -56,6 +59,7 @@ public class Main extends Application {
 			e.printStackTrace();
 		}
 	}
+
 
 	/**
 	 * If string isn't null, set the textfield's text property.
@@ -90,19 +94,12 @@ public class Main extends Application {
 		Label accessTokenLabel = new Label("Access Token: ");
 		Label accessTokenSecretLabel = new Label("Access Token Secret: ");
 		Label delayLabel = new Label("Set number of entries/day (+/- 5%)");
+		Label queryLVLabel = new Label("Search for sweepstakes using the following queries:");
 
 		Button begin = new Button("Start");
 		Button stop = new Button("Stop");
-
-		BotSettingsManager bsm;
-
 		// try to load previous settings from save file
-		bsm = BotSettingsManager.tryLoadInstance((Exception ex) -> {
-			if(ex != null && !(ex instanceof FileNotFoundException)) 
-				//If the file isn't found it probably just means
-				//the user is using the bot for the first time, so ignore it. On other errors, report it.
-				new MsgBox(ex.toString());
-		}, "bot.ser");
+		BotSettingsManager bsm = BotSettingsManager.getInstance();
 
 		// Set up the labels and text fields
 		apiKeyTF.setPromptText("API Key");
@@ -121,6 +118,28 @@ public class Main extends Application {
 		delayTF.setPromptText("# sweepstakes entries per day.");
 		int delay = bsm.getTWEET_DELAY() == 0 ? 199 : BotSettingsManager.msToTweetsPerDay(bsm.getTWEET_DELAY());
 		setTextConditionally(delayTF, String.valueOf(delay));
+		
+		final ObservableList<String> queries = FXCollections.observableArrayList();
+		queries.addAll(bsm.getQUERIES());
+		queries.add(""); //add a blank extra row for user to add more
+		ListView<String> queryLV = new ListView<String>(queries);
+		queryLV.setEditable(true);
+		queryLV.setCellFactory(TextFieldListCell.forListView());
+		queryLV.setOnEditCommit(new EventHandler<EditEvent<String>>() {
+
+			@Override
+			public void handle(EditEvent<String> event) {
+				queryLV.getItems().set(event.getIndex(), event.getNewValue());
+				List<String> positiveLenItems = new ArrayList<String>();
+				for(String str : queryLV.getItems().filtered(x-> x.length()>0)) {
+					positiveLenItems.add(str);
+				}
+				bsm.setQUERIES(positiveLenItems); //add to singleton only non-empty strings
+				queries.clear();
+				queries.addAll(positiveLenItems);
+				queries.add("");
+			}
+		});
 
 		// Set up buttons and button group
 		HBox buttonGroup = new HBox();
@@ -147,15 +166,6 @@ public class Main extends Application {
 			@Override
 			public void handle(MouseEvent event) {
 
-				// Create new thread and attach bot reference to it.
-				bot = new Bot();
-
-				// Disable the begin button so you cant start a bunch of bots.
-				begin.setDisable(true);
-				stop.setDisable(false);
-				tabPane.getSelectionModel().select(logTab);
-				
-				
 				BotSettingsManager bsm = BotSettingsManager.getInstance();
 				bsm.setAPI_KEY(apiKeyTF.getText());
 				bsm.setAPI_SECRET(apiSecretTF.getText());
@@ -167,6 +177,15 @@ public class Main extends Application {
 				BotSettingsManager.saveBotSettings((Exception ex) -> {
 					if(ex!=null)new MsgBox(ex.toString());
 				}, "bot.ser");
+				
+				// Create new thread and attach bot reference to it.
+				bot = new Bot();
+
+				// Disable the begin button so you cant start a bunch of bots.
+				begin.setDisable(true);
+				stop.setDisable(false);
+				tabPane.getSelectionModel().select(logTab);
+			
 
 				bot.setEventLogger(new BotEventLogger() {
 
@@ -266,7 +285,7 @@ public class Main extends Application {
 		buttonGroup.getChildren().addAll(begin, stop);
 
 		vboxSettings.getChildren().addAll(apiKeyLabel, apiKeyTF, apiSecretLabel, apiSecretTF, accessTokenLabel,
-				accessTokenTF, accessTokenSecretLabel, accessTokenSecretTF, delayLabel, delayTF, buttonGroup);
+				accessTokenTF, accessTokenSecretLabel, accessTokenSecretTF, delayLabel, delayTF, queryLVLabel, queryLV, buttonGroup);
 		settingsTab.setContent(vboxSettings);
 		tabPane.getTabs().add(settingsTab);
 	}

@@ -10,6 +10,7 @@ import java.util.List;
 
 public class BotSettingsManager implements IBotSettings, java.io.Serializable {
 
+	
 	/**
 	 * randomly generated
 	 */
@@ -96,8 +97,9 @@ public class BotSettingsManager implements IBotSettings, java.io.Serializable {
 	}
 
 	synchronized public static BotSettingsManager getInstance() {
-		if (bs == null)
-			bs = new BotSettingsManager();
+		if(bs==null) {
+			bs = tryLoadInstance((ex) -> {System.out.println(ex.getMessage());}, "bot.ser");
+		}
 		return bs;
 	}
 
@@ -107,7 +109,7 @@ public class BotSettingsManager implements IBotSettings, java.io.Serializable {
 	}
 
 	public static BotSettingsManager tryLoadInstance(BotSettingsIOFailure f, String filename) {
-		BotSettingsManager bsm;
+		BotSettingsManager bsm = null;
 		try {
 			FileInputStream fis = new FileInputStream(filename);
 			ObjectInputStream ois = new ObjectInputStream(fis);
@@ -117,7 +119,7 @@ public class BotSettingsManager implements IBotSettings, java.io.Serializable {
 			return bsm;
 		} catch (IOException | ClassNotFoundException ex) {
 			f.onException(ex);
-			return BotSettingsManager.getInstance();
+			return new BotSettingsManager();
 		}
 	}
 

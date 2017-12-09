@@ -25,22 +25,22 @@ public class Bot extends Thread {
 
 	public void terminate() {
 		mRunning = false;
-		if(mTimer != null)
+		if (mTimer != null)
 			mTimer.terminate();
 		bel.onTerminated();
 	}
-	
+
 	public void setTimer(BotTimer timer) {
 		mTimer = timer;
 	}
-	
+
 	public void setAndStartTimer(BotTimer timer) {
 		mTimer = timer;
 		mTimer.start();
 	}
-	
-	public BotTimer getTimer() throws NullPointerException{
-		if(mTimer == null) {
+
+	public BotTimer getTimer() throws NullPointerException {
+		if (mTimer == null) {
 			throw new NullPointerException("Timer is null. Make sure to set the timer first.");
 		}
 		return mTimer;
@@ -92,25 +92,26 @@ public class Bot extends Thread {
 				int entries = 0;
 				for (Status s : result.getTweets()) {
 					if (mRunning) {
-						long idToFollow = s.getUser().getId();
-						long idToRetweet = s.getId();
 						try {
+							long idToRetweet = s.getId();
 							twitter.retweetStatus(idToRetweet);
+							long idToFollow = s.getRetweetedStatus().getUser().getId();
 							twitter.createFriendship(idToFollow);
-							twitter.createFavorite(idToRetweet); //twitter favorites are analogous to Facebook likes
+							twitter.createFavorite(idToRetweet); // twitter favorites are analogous to Facebook likes
 							entries++;
 							int delay = obfuscateTweetDelayTime(bsm.getTWEET_DELAY());
 							setAndStartTimer(new BotTimer(delay, bel.onTimerUpdate()));
 							bel.onEntrySuccess(s, entries, result.getTweets().size());
 							Thread.sleep(delay);
 
-						} catch (TwitterException ex) {// catches exceptions from retweeting status/following
+						} catch (TwitterException | NullPointerException ex) {// catches exceptions from retweeting
+																				// status/following
 							// This is most likely thrown from having already previously retweeted.
+							//The NullPointerException comes from s.getRetweetedStatus occasionally returning as null.
 							bel.onEntryFailed(ex);
 							continue; // continue to next queried status
 						}
-					}
-					else {
+					} else {
 						break;
 					}
 				}
@@ -128,4 +129,3 @@ public class Bot extends Thread {
 		bel.onTerminated();
 	}
 }
-
